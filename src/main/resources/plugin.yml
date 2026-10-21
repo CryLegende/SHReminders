@@ -1,0 +1,16 @@
+name: SHReminders
+version: '${project.version}'
+main: org.Cry_Legende.sHReminders.SHReminders
+api-version: '1.20'
+author: Cry_Legende
+
+commands:
+  shreminders:
+    description: Planifie un rappel de vote pour un joueur.
+    usage: /shreminders <joueur> <id>
+    permission: shreminders.admin
+
+permissions:
+  shreminders.admin:
+    description: Permission pour utiliser la commande /shreminders.
+    default: op

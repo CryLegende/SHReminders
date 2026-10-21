@@ -1,0 +1,287 @@
+# Configuration pour le plugin SHReminders
+
+# --- COMMANDES ---
+# /shreminders <joueur> <id_rappel_config>
+#   Description: Programme un rappel pour un joueur (même hors ligne) basé sur une configuration
+#                définie dans la section "reminders" de ce fichier.
+#                Si un rappel avec le même <id_rappel_config> existe déjà pour ce joueur, il est remplacé.
+#   Permission: shreminders.admin
+#   Exemple: /shreminders Notch monPremierRappel
+#     -> Va chercher la configuration sous "reminders.monPremierRappel:"
+
+# --- PLACEHOLDERS (Nécessite PlaceholderAPI) ---
+# Les placeholders affichent le temps restant avant le prochain déclenchement d'un rappel spécifique
+# pour le joueur actuel.
+#
+# Format: %shreminders_next_<id_placeholder>%
+#
+#   <id_placeholder> peut être:
+#     1. La valeur de la clé "placeholderId" définie dans la configuration du rappel.
+#        Exemple: Si dans "reminders.monVote:", vous avez "placeholderId: vote",
+#                 le placeholder sera %shreminders_next_vote%
+#
+#     2. Si "placeholderId" n'est pas défini, ce sera l'<id_rappel_config> "nettoyé"
+#        (converti en minuscules, sans caractères spéciaux).
+#        Exemple: Si l'ID du rappel est "SuperRappel!", le placeholder serait
+#                 %shreminders_next_superrappel%
+#
+#   Valeurs retournées par le placeholder:
+#     - Compte à rebours formaté (défini par 'placeholderCountdownFormat') si un rappel est en attente.
+#     - Message spécifique (défini dans 'placeholderMessages') si le rappel est terminé,
+#       n'existe pas, ou dans d'autres états.
+#       Par défaut "none" ou "Terminé" selon la situation.
+#
+# Exemples de placeholders:
+#   %shreminders_next_vote%
+#   %shreminders_next_quetejournaliere%
+#
+# --- STRUCTURE DE CONFIGURATION D'UN RAPPEL ---
+# reminders:
+#   <id_rappel_config>:   # Identifiant unique pour ce type de rappel
+#     delay: <minutes>    # Délai en minutes avant le premier déclenchement
+#     command: "<commande>" # Commande à exécuter (console), %player% est remplacé
+#     title: "<texte>"      # Titre à afficher au joueur (supporte les codes couleurs &)
+#     subtitle: "<texte>"   # Sous-titre
+#     message: "<texte>"    # Message dans le chat
+#     actionbar: "<texte>"  # Message dans l'action bar
+#     sound: "<NOM_DU_SON>" # Nom du son Bukkit (ex: ENTITY_PLAYER_LEVELUP)
+#     soundVolume: <nombre> # Volume du son (ex: 1.0)
+#     soundPitch: <nombre>  # Tonalité du son (ex: 1.0)
+#     placeholderId: "<id_court>" # (Optionnel) ID court pour le placeholder
+#
+#     repeat:               # (Optionnel) Section pour les rappels répétitifs
+#       enabled: <true|false>
+#       delay: <minutes>    # Délai en minutes entre chaque répétition
+#       maxRepeat: <nombre> # Nombre maximum de répétitions (-1 pour infini)
+#       # Les clés title, subtitle, message, command, actionbar, sound, soundVolume, soundPitch
+#       # peuvent aussi être définies ici pour la répétition, avec un comportement spécifique.
+
+# --- CONFIGURATION GÉNÉRALE DES PLACEHOLDERS ---
+# (Voir plus bas dans le fichier pour placeholderMessages et placeholderCountdownFormat)
+
+# Début de votre configuration réelle ci-dessous
+# -------------------------------------------------
+placeholderCountdownFormat: "{h}h {m}m {s}s"
+
+# Messages retournés par les placeholders selon l'état du rappel
+placeholderMessages:
+  triggeredNoRepeat: "none"   # Rappel déclenché sans répétition activée
+  repeatFinished: "none"      # Toutes les répétitions terminées
+  mainDoneNoRepeat: "none"    # Rappel principal exécuté, pas de répétition en cours
+  notFound: "none"            # Aucun rappel trouvé pour cet identifiant
+
+reminders:
+  "Vote N°1 (liste-serveurs-minecraft.org)":
+    placeholderId: vote1
+    delay: 180 # en minutes
+    title: "&r"
+    subtitle: "&7&l« &a&lVote N°1 &adisponible &8&l»"
+    message: "&7&l« &a&lSH &8&l» &7Le &a&lVote N°1 &7est disponible, faites &f/vote &7pour voter."
+    #command: "shadmin message %player% Le vote N°1 ``(liste-serveurs-minecraft.org)`` est disponible ! <https://skyhand.fr/vote>"
+    command: "shadmin message %player% ## Vote disponible ! ✨\nLe **vote N°1** (`liste-serveurs-minecraft.org`) est disponible ! [[Cliquez pour voter]](<https://skyhand.fr/vote>)"
+    actionbar: "&7&l« &a&lVote N°1 &adisponible &8&l»"
+    sound: BLOCK_NOTE_BLOCK_BELL
+    soundVolume: 1.0
+    soundPitch: 2.0
+    repeat:
+      enabled: true
+      delay: 5 # en minutes
+      maxRepeat: 2
+      title: ""
+      subtitle: ""
+      message: "&7&l« &a&lSH &8&l» &7Le &a&lVote N°1 &7est toujours disponible, faites &f/vote &7pour voter."
+      command: ""
+      actionbar: "&7&l« &eLe vote 1 est toujours disponible ! &8&l»"
+      sound: BLOCK_NOTE_BLOCK_BELL
+      soundVolume: 1.0
+      soundPitch: 2.0
+
+  "Vote N°2 (top-serveurs.net)":
+    placeholderId: vote2
+    delay: 120
+    title: "&r"
+    subtitle: "&7&l« &a&lVote N°2 &adisponible &8&l»"
+    message: "&7&l« &a&lSH &8&l» &7Le &a&lVote N°2 &7est disponible, faites &f/vote &7pour voter."
+    #command: "shadmin message %player% Le vote N°2 ``(top-serveurs.net)`` est disponible ! <https://skyhand.fr/vote>"
+    command: "shadmin message %player% ## Vote disponible ! ✨\nLe **vote N°2** (`top-serveurs.net`) est disponible ! [[Cliquez pour voter]](<https://skyhand.fr/vote>)"
+    actionbar: "&7&l« &a&lVote N°2 &adisponible &8&l»"
+    sound: BLOCK_NOTE_BLOCK_BELL
+    soundVolume: 1.0
+    soundPitch: 2.0
+    repeat:
+      enabled: true
+      delay: 5
+      maxRepeat: 2
+      title: ""
+      subtitle: ""
+      message: "&7&l« &a&lSH &8&l» &7Le &a&lVote N°2 &7est toujours disponible, faites &f/vote &7pour voter."
+      command: ""
+      actionbar: "&7&l« &eLe vote 2 est toujours disponible ! &8&l»"
+      sound: BLOCK_NOTE_BLOCK_BELL
+      soundVolume: 1.0
+      soundPitch: 2.0
+
+  "Vote N°3 (serveur-minecraft.com)":
+    placeholderId: vote3
+    delay: 90
+    title: "&r"
+    subtitle: "&7&l« &a&lVote N°3 &adisponible &8&l»"
+    message: "&7&l« &a&lSH &8&l» &7Le &a&lVote N°3 &7est disponible, faites &f/vote &7pour voter."
+    #command: "shadmin message %player% Le vote N°3 ``(serveur-minecraft.com)`` est disponible ! <https://skyhand.fr/vote>"
+    command: "shadmin message %player% ## Vote disponible ! ✨\nLe **vote N°3** (`serveur-minecraft.com`) est disponible ! [[Cliquez pour voter]](<https://skyhand.fr/vote>)"
+    actionbar: "&7&l« &a&lVote N°3 &adisponible &8&l»"
+    sound: BLOCK_NOTE_BLOCK_BELL
+    soundVolume: 1.0
+    soundPitch: 2.0
+    repeat:
+      enabled: true
+      delay: 5
+      maxRepeat: 2
+      title: ""
+      subtitle: ""
+      message: "&7&l« &a&lSH &8&l» &7Le &a&lVote N°3 &7est toujours disponible, faites &f/vote &7pour voter."
+      command: ""
+      actionbar: "&7&l« &eLe vote 3 est toujours disponible ! &8&l»"
+      sound: BLOCK_NOTE_BLOCK_BELL
+      soundVolume: 1.0
+      soundPitch: 2.0
+
+  "Vote N°4 (serveursminecraft.org)":
+    placeholderId: vote4
+    delay: 1440
+    title: "&r"
+    subtitle: "&7&l« &a&lVote N°4 &adisponible &8&l»"
+    message: "&7&l« &a&lSH &8&l» &7Le &a&lVote N°4 &7est disponible, faites &f/vote &7pour voter."
+    #command: "shadmin message %player% Le vote N°4 ``(serveursminecraft.org)`` est disponible ! <https://skyhand.fr/vote>"
+    command: "shadmin message %player% ## Vote disponible ! ✨\nLe **vote N°4** (`serveursminecraft.org`) est disponible ! [[Cliquez pour voter]](<https://skyhand.fr/vote>)"
+    actionbar: "&7&l« &a&lVote N°4 &adisponible &8&l»"
+    sound: BLOCK_NOTE_BLOCK_BELL
+    soundVolume: 1.0
+    soundPitch: 2.0
+    repeat:
+      enabled: true
+      delay: 5
+      maxRepeat: 2
+      title: ""
+      subtitle: ""
+      message: "&7&l« &a&lSH &8&l» &7Le &a&lVote N°4 &7est toujours disponible, faites &f/vote &7pour voter."
+      command: ""
+      actionbar: "&7&l« &eLe vote 4 est toujours disponible ! &8&l»"
+      sound: BLOCK_NOTE_BLOCK_BELL
+      soundVolume: 1.0
+      soundPitch: 2.0
+
+  "Kit Aquatique":
+    placeholderId: kitaquatique
+    delay: 2880
+    title: "&r"
+    subtitle: ""
+    message: "&7&l« &a&lSH &8&l» &7Votre &fKit &9&lAquatique &7est de nouveau disponible !"
+    actionbar: "&7&l« &9&k!!!&r &8&l» &7Votre &fKit &9&lAquatique &7est disponible ! &7&l« &9&k!!!&r &8&l»"
+    sound: BLOCK_NOTE_BLOCK_BELL
+    soundVolume: 1.0
+    soundPitch: 2.0
+    repeat:
+      enabled: false
+      delay: 5
+      maxRepeat: 2
+      title: ""
+      subtitle: ""
+      message: ""
+      command: ""
+      actionbar: "&7&l« &9&k!!!&r &8&l» &7Votre &fKit &9&lAquatique &7est disponible ! &7&l« &9&k!!!&r &8&l»"
+      sound: BLOCK_NOTE_BLOCK_BELL
+      soundVolume: 1.0
+      soundPitch: 2.0
+
+  "Kit Abimes":
+    placeholderId: kitabimes
+    delay: 2880
+    title: "&r"
+    subtitle: ""
+    message: "&7&l« &a&lSH &8&l» &7Votre &fKit &8&lAbîmes &7est de nouveau disponible !"
+    actionbar: "&7&l« &8&k!!!&r &8&l» &7Votre &fKit &8&lAbîmes &7est disponible ! &7&l« &8&k!!!&r &8&l»"
+    sound: BLOCK_NOTE_BLOCK_BELL
+    soundVolume: 1.0
+    soundPitch: 2.0
+    repeat:
+      enabled: false
+      delay: 5
+      maxRepeat: 2
+      title: ""
+      subtitle: ""
+      message: ""
+      command: ""
+      actionbar: "&7&l« &8&k!!!&r &8&l» &7Votre &fKit &8&lAbîmes &7est disponible ! &7&l« &8&k!!!&r &8&l»"
+      sound: BLOCK_NOTE_BLOCK_BELL
+      soundVolume: 1.0
+      soundPitch: 2.0
+
+  "Kit Nature":
+    placeholderId: kitnature
+    delay: 2880
+    title: "&r"
+    subtitle: ""
+    message: "&7&l« &a&lSH &8&l» &7Votre &fKit &2&lNature &7est de nouveau disponible !"
+    actionbar: "&7&l« &2&k!!!&r &8&l» &7Votre &fKit &2&lNature &7est disponible ! &7&l« &2&k!!!&r &2&l»"
+    sound: BLOCK_NOTE_BLOCK_BELL
+    soundVolume: 1.0
+    soundPitch: 2.0
+    repeat:
+      enabled: false
+      delay: 5
+      maxRepeat: 2
+      title: ""
+      subtitle: ""
+      message: ""
+      command: ""
+      actionbar: "&7&l« &2&k!!!&r &8&l» &7Votre &fKit &2&lNature &7est disponible ! &7&l« &2&k!!!&r &2&l»"
+      sound: BLOCK_NOTE_BLOCK_BELL
+      soundVolume: 1.0
+      soundPitch: 2.0
+
+  "Kit Warden":
+    placeholderId: kitwarden
+    delay: 2880
+    title: "&r"
+    subtitle: ""
+    message: "&7&l« &a&lSH &8&l» &7Votre &fKit &2&lWarden &7est de nouveau disponible !"
+    actionbar: "&7&l« &2&k!!!&r &8&l» &7Votre &fKit &2&lWarden &7est disponible ! &7&l« &2&k!!!&r &2&l»"
+    sound: BLOCK_NOTE_BLOCK_BELL
+    soundVolume: 1.0
+    soundPitch: 2.0
+    repeat:
+      enabled: false
+      delay: 5
+      maxRepeat: 2
+      title: ""
+      subtitle: ""
+      message: ""
+      command: ""
+      actionbar: "&7&l« &2&k!!!&r &8&l» &7Votre &fKit &2&lWarden &7est disponible ! &7&l« &2&k!!!&r &2&l»"
+      sound: BLOCK_NOTE_BLOCK_BELL
+      soundVolume: 1.0
+      soundPitch: 2.0
+
+  "Kit Nitro":
+    placeholderId: kitnitro
+    delay: 11520
+    title: "&r"
+    subtitle: ""
+    message: "&7&l« &a&lSH &8&l» &7Votre &fKit &d&lNitro &7est de nouveau disponible !"
+    actionbar: "&7&l« &d&k!!!&r &8&l» &7Votre &fKit &d&lNitro &7est disponible ! &7&l« &d&k!!!&r &2&l»"
+    sound: BLOCK_NOTE_BLOCK_BELL
+    soundVolume: 1.0
+    soundPitch: 2.0
+    repeat:
+      enabled: false
+      delay: 5
+      maxRepeat: 2
+      title: ""
+      subtitle: ""
+      message: ""
+      command: ""
+      actionbar: "&7&l« &d&k!!!&r &8&l» &7Votre &fKit &d&lNitro &7est disponible ! &7&l« &d&k!!!&r &2&l»"
+      sound: BLOCK_NOTE_BLOCK_BELL
+      soundVolume: 1.0
+      soundPitch: 2.0
