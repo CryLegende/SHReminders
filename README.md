@@ -4,7 +4,7 @@
 
 # SHReminders
 
-*Plugin du serveur SkyHand.*
+*Rappels programmés par joueur (ex. prochain vote), même hors ligne, avec placeholder du temps restant.*
 
 <img src="https://img.shields.io/badge/Paper-26.3-f2a900?style=for-the-badge" alt="Paper 26.3"> <img src="https://img.shields.io/badge/Java-25-e76f00?style=for-the-badge" alt="Java 25"> <img src="https://img.shields.io/badge/SkyHand-Opale-3aa655?style=for-the-badge" alt="SkyHand Opale">
 
@@ -14,7 +14,7 @@
 
 ## Présentation
 
-Plugin du serveur SkyHand.
+Rappels programmés par joueur (ex. prochain vote), même hors ligne, avec placeholder du temps restant.
 
 Utilisé sur : **Opale**.
 
@@ -32,9 +32,12 @@ Utilisé sur : **Opale**.
 
 ## Configuration
 
-Fichiers par défaut repris du serveur (secrets remplacés par `CHANGE_ME`) :
+Fichiers par défaut repris du serveur (secrets remplacés par `CHANGE_ME`). Cliquez sur un fichier pour l'ouvrir :
 
-- `config.yml`
+<pre>
+plugins/SHReminders/
+└── <a href="src/main/resources/config.yml">config.yml</a>
+</pre>
 
 ## Compilation
 
