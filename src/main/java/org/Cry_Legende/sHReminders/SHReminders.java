@@ -3,12 +3,16 @@ package org.Cry_Legende.sHReminders;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.Base64;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Registry;
 import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -27,6 +31,8 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
     private YamlConfiguration remindersConfig;
     private final Map<String, Reminder> activeReminders = new HashMap<>();
     private BukkitRunnable schedulerTask;
+    // Une seule écriture de reminders.yml à la fois (l'instantané est pris sous ce verrou)
+    private final Object fileLock = new Object();
 
     @Override
     public void onEnable() {
@@ -125,8 +131,8 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
             // Le scheduler lit et retire.
             synchronized (activeReminders) {
                 activeReminders.put(key, newReminder);
-                saveReminders(); // saveReminders fait de l'I/O, c'est bien qu'il soit async
             }
+            saveReminders(); // I/O : on est déjà dans une tâche asynchrone, hors du verrou de la map
 
             Bukkit.getScheduler().runTask(this, () -> {
                 sender.sendMessage(ChatColor.GREEN + "Rappel '" + reminderId + "' programmé pour " + canonicalPlayerName + ".");
@@ -239,13 +245,13 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
                 } // Fin du synchronized block
 
                 if (!remindersToUpdate.isEmpty()) {
-                    synchronized (activeReminders) { // Re-synchroniser pour la sauvegarde si des modifications ont eu lieu
-                        saveReminders();
-                    }
+                    // L'écriture du fichier part en asynchrone : le thread principal ne fait pas d'I/O
+                    Bukkit.getScheduler().runTaskAsynchronously(SHReminders.this, SHReminders.this::saveReminders);
                 }
             }
         };
-        schedulerTask.runTaskTimerAsynchronously(this, 20L, 20L); // Exécution toutes les secondes, de manière ASYNCHRONE
+        // Sur le thread principal (Bukkit.getPlayer, Player#isOnline...) : la boucle ne parcourt que quelques rappels
+        schedulerTask.runTaskTimer(this, 20L, 20L); // Exécution toutes les secondes
     }
 
 
@@ -275,10 +281,10 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
                 player.sendActionBar(ChatColor.translateAlternateColorCodes('&', actionbar));
             }
             if (!soundString.isEmpty()) {
-                try {
-                    Sound sound = Sound.valueOf(soundString.toUpperCase());
+                Sound sound = sound(soundString);
+                if (sound != null) {
                     player.playSound(player.getLocation(), sound, volume, pitch);
-                } catch (IllegalArgumentException e) {
+                } else {
                     getLogger().warning("Sound " + soundString + " invalide pour le rappel " + configPath);
                 }
             }
@@ -315,14 +321,29 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
                 player.sendActionBar(ChatColor.translateAlternateColorCodes('&', repActionbar));
             }
             if (!repSoundString.isEmpty()) {
-                try {
-                    Sound repSound = Sound.valueOf(repSoundString.toUpperCase());
+                Sound repSound = sound(repSoundString);
+                if (repSound != null) {
                     player.playSound(player.getLocation(), repSound, repVolume, repPitch);
-                } catch (IllegalArgumentException e) {
+                } else {
                     getLogger().warning("Sound " + repSoundString + " invalide pour le rappel répétitif " + configPath);
                 }
             }
         });
+    }
+
+    /** Son lu en config : ancien nom (ENTITY_PLAYER_LEVELUP) ou clé (minecraft:entity.player.levelup). */
+    static Sound sound(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String s = raw.trim();
+        if (s.indexOf(':') >= 0 || s.indexOf('.') >= 0) {
+            NamespacedKey key = NamespacedKey.fromString(s.toLowerCase(Locale.ROOT));
+            return key == null ? null : Registry.SOUND_EVENT.get(key);
+        }
+        try {
+            return (Sound) Sound.class.getField(s.toUpperCase(Locale.ROOT)).get(null);
+        } catch (ReflectiveOperationException | ClassCastException e) {
+            return null;
+        }
     }
 
     private String encodeKey(String key) {
@@ -333,34 +354,39 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
         return new String(Base64.getDecoder().decode(encodedKey), StandardCharsets.UTF_8);
     }
 
-    // Cette méthode est appelée depuis des contextes asynchrones (onCommand, schedulerTask)
-    // et modifie un fichier. Elle est donc bien placée.
+    // Appelée depuis des tâches asynchrones (onCommand, schedulerTask) et depuis onDisable.
+    // Ne jamais l'appeler en tenant le verrou de activeReminders (ordre des verrous : fileLock puis activeReminders).
     private void saveReminders() {
-        YamlConfiguration tempConfig = new YamlConfiguration();
-        synchronized (activeReminders) { // S'assurer de lire une copie cohérente
-            for (Map.Entry<String, Reminder> entry : activeReminders.entrySet()) {
-                String key = entry.getKey(); // "playerUUID:reminderId"
-                String encodedKey = encodeKey(key); // Clé pour le fichier YAML
-                Reminder rem = entry.getValue();
-                ConfigurationSection section = tempConfig.createSection(encodedKey);
+        synchronized (fileLock) {
+            YamlConfiguration tempConfig = new YamlConfiguration();
+            synchronized (activeReminders) { // S'assurer de lire une copie cohérente
+                for (Map.Entry<String, Reminder> entry : activeReminders.entrySet()) {
+                    String key = entry.getKey(); // "playerUUID:reminderId"
+                    String encodedKey = encodeKey(key); // Clé pour le fichier YAML
+                    Reminder rem = entry.getValue();
+                    ConfigurationSection section = tempConfig.createSection(encodedKey);
 
-                section.set("playerId", rem.playerId.toString()); // Redondant avec la clé mais bon pour la lisibilité
-                section.set("playerName", rem.playerName);       // Stocker le nom
-                section.set("reminderId", rem.reminderId);       // Redondant aussi
+                    section.set("playerId", rem.playerId.toString()); // Redondant avec la clé mais bon pour la lisibilité
+                    section.set("playerName", rem.playerName);       // Stocker le nom
+                    section.set("reminderId", rem.reminderId);       // Redondant aussi
 
-                section.set("mainTriggerTime", rem.mainTriggerTime);
-                section.set("mainTriggered", rem.mainTriggered);
-                section.set("repeatEnabled", rem.repeatEnabled);
-                section.set("repeatDelay", rem.repeatDelay);
-                section.set("maxRepeat", rem.maxRepeat);
-                section.set("repeatCount", rem.repeatCount);
-                section.set("nextRepeatTime", rem.nextRepeatTime);
+                    section.set("mainTriggerTime", rem.mainTriggerTime);
+                    section.set("mainTriggered", rem.mainTriggered);
+                    section.set("repeatEnabled", rem.repeatEnabled);
+                    section.set("repeatDelay", rem.repeatDelay);
+                    section.set("maxRepeat", rem.maxRepeat);
+                    section.set("repeatCount", rem.repeatCount);
+                    section.set("nextRepeatTime", rem.nextRepeatTime);
+                }
             }
-        }
-        try {
-            tempConfig.save(remindersFile);
-        } catch (IOException e) {
-            getLogger().severe("Impossible de sauvegarder reminders.yml: " + e.getMessage());
+            // Écriture dans un fichier temporaire puis remplacement : un arrêt en plein milieu ne tronque pas reminders.yml
+            File tmp = new File(remindersFile.getParentFile(), remindersFile.getName() + ".tmp");
+            try {
+                tempConfig.save(tmp);
+                Files.move(tmp.toPath(), remindersFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException e) {
+                getLogger().severe("Impossible de sauvegarder reminders.yml: " + e.getMessage());
+            }
         }
     }
 
