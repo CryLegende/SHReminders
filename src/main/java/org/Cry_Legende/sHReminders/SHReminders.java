@@ -33,10 +33,13 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
     private BukkitRunnable schedulerTask;
     // Une seule écriture de reminders.yml à la fois (l'instantané est pris sous ce verrou)
     private final Object fileLock = new Object();
+    // Identifiants des rappels définis dans config.yml : la tâche de chaque seconde les consulte pour chaque rappel actif
+    private Set<String> configuredReminderIds = Set.of();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        cacheConfiguredReminderIds();
         getCommand("shreminders").setExecutor(this);
 
         remindersFile = new File(getDataFolder(), "reminders.yml");
@@ -56,6 +59,21 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
             new SHRemindersPlaceholderExpansion(this).register();
             getLogger().info("PlaceholderAPI trouvée : les placeholders SHReminders ont été enregistrés.");
         }
+    }
+
+    // Chemins de toutes les sections sous « reminders », à toute profondeur : un identifiant contenant un point
+    // (« Vote N°2 (top-serveurs.net) ») est découpé en sous-sections par Bukkit, son chemin complet doit y figurer
+    private void cacheConfiguredReminderIds() {
+        Set<String> ids = new HashSet<>();
+        ConfigurationSection section = getConfig().getConfigurationSection("reminders");
+        if (section != null) {
+            for (String path : section.getKeys(true)) {
+                if (section.isConfigurationSection(path)) {
+                    ids.add(path);
+                }
+            }
+        }
+        configuredReminderIds = Set.copyOf(ids);
     }
 
     @Override
@@ -163,7 +181,7 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
                         Reminder rem = entry.getValue();
                         String configPath = "reminders." + rem.reminderId; // Chemin dans config.yml
 
-                        if (!getConfig().isConfigurationSection(configPath)) { // Vérifier si le rappel existe toujours dans config.yml
+                        if (!configuredReminderIds.contains(rem.reminderId)) { // Vérifier si le rappel existe toujours dans config.yml
                             getLogger().warning("Le rappel " + rem.reminderId + " pour " + rem.playerName + " n'a plus de configuration. Suppression...");
                             it.remove(); // Supprimer directement avec l'itérateur
                             remindersToUpdate.add(null); // Signale une modification pour saveReminders
