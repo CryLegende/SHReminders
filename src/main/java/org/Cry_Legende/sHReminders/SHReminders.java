@@ -2,11 +2,14 @@ package org.Cry_Legende.sHReminders;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.Base64;
+import java.util.logging.Level;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -35,6 +38,11 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
     private final Object fileLock = new Object();
     // Identifiants des rappels définis dans config.yml : la tâche de chaque seconde les consulte pour chaque rappel actif
     private Set<String> configuredReminderIds = Set.of();
+    // Vrai une fois reminders.yml chargé : sans cela, l'arrêt écraserait le fichier par une liste vide
+    private boolean remindersLoaded;
+    // Mode réseau (SHNetwork présent) : null en mode local
+    private NetworkReminders network;
+    private YamlConfiguration networkMessages;
 
     @Override
     public void onEnable() {
@@ -51,9 +59,19 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
                 getLogger().severe("Impossible de créer le fichier reminders.yml: " + e.getMessage());
             }
         }
-        remindersConfig = YamlConfiguration.loadConfiguration(remindersFile);
-        loadReminders();
-        startScheduler();
+        if (!enableNetwork()) {
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        if (network == null) {
+            remindersConfig = YamlConfiguration.loadConfiguration(remindersFile);
+            loadReminders();
+            startScheduler();
+            remindersLoaded = true;
+        } else {
+            // les rappels sont dans la base partagée : le planificateur du réseau les réclame un à un
+            network.start();
+        }
 
         if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
             new SHRemindersPlaceholderExpansion(this).register();
@@ -78,16 +96,27 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
 
     @Override
     public void onDisable() {
+        if (network != null) {
+            // reminders.yml n'est pas réécrit : la base fait foi
+            network.close();
+            return;
+        }
         if (schedulerTask != null) {
             schedulerTask.cancel();
         }
-        saveReminders(); // Sauvegarder à la désactivation est une bonne pratique
+        if (remindersLoaded) {
+            saveReminders(); // Sauvegarder à la désactivation est une bonne pratique
+        }
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("shreminders.admin")) {
             sender.sendMessage(ChatColor.RED + "Vous n'avez pas la permission.");
+            return true;
+        }
+        if (network != null && args.length == 1 && args[0].equalsIgnoreCase("import")) {
+            network.importFile(sender);
             return true;
         }
         if (args.length < 2) {
@@ -106,6 +135,10 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
 
         // --- Début de la section asynchrone ---
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            if (network != null) {
+                network.schedule(sender, playerNameInput, reminderId, configPath);
+                return;
+            }
             OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerNameInput);
 
             if (offlinePlayer == null || offlinePlayer.getUniqueId() == null || offlinePlayer.getName() == null) {
@@ -273,7 +306,7 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
     }
 
 
-    private void triggerMainReminder(Player player, String configPath) {
+    void triggerMainReminder(Player player, String configPath) {
         // S'assurer que toutes les interactions API Bukkit (sendTitle, sendMessage, playSound)
         // sont exécutées sur le thread principal.
         Bukkit.getScheduler().runTask(this, () -> {
@@ -309,7 +342,7 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
         });
     }
 
-    private void triggerRepeatReminder(Player player, String configPath) {
+    void triggerRepeatReminder(Player player, String configPath) {
         Bukkit.getScheduler().runTask(this, () -> {
             String repTitle = getConfig().getString(configPath + ".repeat.title", "");
             String repSubtitle = getConfig().getString(configPath + ".repeat.subtitle", "");
@@ -456,6 +489,84 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
                 }
             }
             getLogger().info(activeReminders.size() + " rappels actifs chargés depuis reminders.yml.");
+        }
+    }
+
+    // --- MODE RÉSEAU ---
+
+    /**
+     * Passe en mode réseau si SHNetwork est installé et que reseau.actif est vrai. Les classes qui touchent à SHNetwork
+     * ne sont résolues qu'ici : sans lui, rien n'est chargé et le plugin garde son fonctionnement d'origine. Faux si le
+     * mode réseau est demandé mais inutilisable : le plugin ne démarre pas, sinon chaque serveur exécuterait les
+     * commandes de ses propres rappels.
+     */
+    private boolean enableNetwork() {
+        if (!getConfig().getBoolean("reseau.actif", true)) return true;
+        if (!getServer().getPluginManager().isPluginEnabled("SHNetwork")) return true;
+        try {
+            network = NetworkReminders.open(this);
+            loadNetworkMessages();
+            getLogger().info("SHNetwork détecté : rappels en base partagée, chaque rappel déclenché une seule fois pour tout le réseau.");
+            return true;
+        } catch (RuntimeException | LinkageError e) {
+            if (network != null) network.close();
+            network = null;
+            getLogger().log(Level.SEVERE, "SHNetwork présent mais mode réseau inutilisable, plugin désactivé.", e);
+            return false;
+        }
+    }
+
+    /** Textes propres au mode réseau (messages.yml) ; un fichier plus ancien reprend les textes du jar. */
+    private void loadNetworkMessages() {
+        File file = new File(getDataFolder(), "messages.yml");
+        if (!file.exists()) saveResource("messages.yml", false);
+        networkMessages = YamlConfiguration.loadConfiguration(file);
+        try (InputStream in = getResource("messages.yml")) {
+            if (in != null) {
+                networkMessages.setDefaults(YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8)));
+            }
+        } catch (IOException e) {
+            getLogger().warning("Impossible de lire messages.yml du jar : " + e.getMessage());
+        }
+    }
+
+    /** Texte de messages.yml, avec les codes couleur &. */
+    String networkMessage(String key) {
+        return ChatColor.translateAlternateColorCodes('&', networkMessages.getString(key, ""));
+    }
+
+    /** Exécute sur le fil principal (appelable de n'importe quel fil). */
+    void runMain(Runnable task) {
+        Bukkit.getScheduler().runTask(this, task);
+    }
+
+    /** Copie en mémoire des rappels : à parcourir et modifier sous son propre verrou. */
+    Map<String, Reminder> activeReminders() {
+        return activeReminders;
+    }
+
+    Set<String> configuredReminderIds() {
+        return configuredReminderIds;
+    }
+
+    /** Mode réseau : remplace tous les rappels par ceux de la base. */
+    void replaceReminders(Map<String, Reminder> fresh) {
+        synchronized (activeReminders) {
+            activeReminders.clear();
+            activeReminders.putAll(fresh);
+        }
+    }
+
+    /** Mode réseau : ajoute ou remplace un rappel (l'objet n'est plus modifié ensuite). */
+    void putReminder(Reminder reminder) {
+        synchronized (activeReminders) {
+            activeReminders.put(reminder.playerId + ":" + reminder.reminderId, reminder);
+        }
+    }
+
+    void removeReminder(String key) {
+        synchronized (activeReminders) {
+            activeReminders.remove(key);
         }
     }
 

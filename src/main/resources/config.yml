@@ -8,6 +8,15 @@
 #   Permission: shreminders.admin
 #   Exemple: /shreminders Notch monPremierRappel
 #     -> Va chercher la configuration sous "reminders.monPremierRappel:"
+#
+# /shreminders import
+#   Description: Avec SHNetwork, reprend reminders.yml dans la base partagée, sans toucher aux rappels qui y sont déjà.
+#   Permission: shreminders.admin
+#
+# --- PLUSIEURS SERVEURS DE JEU ---
+# Avec SHNetwork (voir la section "reseau" plus bas), les rappels sont dans la base partagée et chaque rappel n'est déclenché
+# qu'une fois pour tout le réseau : la commande console part d'un seul serveur, titre, message, barre d'action et son sont
+# affichés par le serveur où se trouve le joueur. Les textes du mode réseau sont dans messages.yml.
 
 # --- PLACEHOLDERS (Nécessite PlaceholderAPI) ---
 # Les placeholders affichent le temps restant avant le prochain déclenchement d'un rappel spécifique
@@ -69,6 +78,31 @@ placeholderMessages:
   repeatFinished: "none"      # Toutes les répétitions terminées
   mainDoneNoRepeat: "none"    # Rappel principal exécuté, pas de répétition en cours
   notFound: "none"            # Aucun rappel trouvé pour cet identifiant
+
+# Plusieurs serveurs de jeu : actif seulement si SHNetwork est installé ; sans lui, ou avec actif: false, rien ne change
+# (tout reste dans reminders.yml). Avec SHNetwork, les rappels sont dans la base ci-dessous, partagée par tous les serveurs :
+#   - /shreminders programme un rappel pour un joueur connecté sur n'importe quel serveur, ou hors ligne ;
+#   - chaque serveur tente de réclamer en base les rappels échus, un seul y parvient : lui seul exécute la commande console
+#     et annonce le rappel aux autres serveurs, qui l'affichent si le joueur est chez eux ;
+#   - une répétition n'est réclamée que par le serveur où se trouve le joueur ;
+#   - %shreminders_next_...% lit une copie en mémoire, relue après chaque changement ;
+#   - reminders.yml n'est plus lu ni écrit : /shreminders import le reprend dans la base.
+# Tous les serveurs doivent avoir les mêmes rappels dans config.yml. Demande un redémarrage : tout le bloc.
+reseau:
+  actif: true
+  # Canal du bus SHNetwork : changements de la base et rappels déclenchés
+  canal: shreminders
+  # Table des comptes connus du réseau (colonnes name en minuscules et display_name) : retrouve un joueur par son pseudo
+  # avec /shreminders même s'il ne s'est jamais connecté sur ce serveur.
+  # Vide : seuls les joueurs connectés sur le réseau ou déjà venus sur ce serveur sont retrouvés.
+  table-comptes: "Global.sh_track_firstseen"
+  base-de-donnees:
+    url: "jdbc:mariadb://127.0.0.1:3306/bo_net"
+    utilisateur: shreminders
+    mot-de-passe: CHANGE_ME
+    # Délai maximal de connexion à la base, en millisecondes. Une base qui ne répond pas fait échouer la commande
+    # avec un message ; les rappels échus attendent qu'elle revienne.
+    delai-ms: 5000
 
 reminders:
   "Vote N°1 (liste-serveurs-minecraft.org)":

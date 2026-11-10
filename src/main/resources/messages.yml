@@ -1,0 +1,15 @@
+# Textes propres au mode réseau de SHReminders (SHNetwork). Les autres réponses de la commande sont celles d'avant.
+# Codes couleur &.
+
+# /shreminders : la base partagée ne répond pas, le rappel n'a pas été programmé.
+database_error: "&7&l« &c&lSH &8&l» &7La base des rappels &cne répond pas&7, le rappel n'a pas été programmé."
+
+# /shreminders : joueur ni connecté sur le réseau, ni connu de la table des comptes, ni déjà venu sur ce serveur.
+# %player% = pseudo tapé.
+player_not_found: "&7&l« &c&lSH &8&l» &7Le joueur &c%player%&7 n'a pas été trouvé sur le réseau."
+
+# /shreminders import terminée. %IMPORTED% = rappels ajoutés à la base, %PRESENT% = rappels qui y étaient déjà.
+import_success: "&7&l« &a&lSH &8&l» &a%IMPORTED%&7 rappels importés dans la base du réseau (&a%PRESENT%&7 déjà présents)."
+
+# /shreminders import : fichier illisible ou base injoignable.
+import_error: "&7&l« &c&lSH &8&l» &7Importation &céchouée&7, voir la console."

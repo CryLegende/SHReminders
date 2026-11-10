@@ -3,6 +3,13 @@ version: '${project.version}'
 main: org.Cry_Legende.sHReminders.SHReminders
 api-version: '1.20'
 author: Cry_Legende
+# SHNetwork est facultatif : sans lui, les rappels restent locaux à ce serveur comme avant.
+softdepend: [SHNetwork]
+# Chargées par Paper dans le classloader du plugin : le serveur n'embarque que les pilotes MySQL et SQLite.
+# Seul le mode réseau (rappels en MariaDB) s'en sert.
+libraries:
+  - com.zaxxer:HikariCP:5.1.0
+  - org.mariadb.jdbc:mariadb-java-client:3.4.1
 
 commands:
   shreminders:
