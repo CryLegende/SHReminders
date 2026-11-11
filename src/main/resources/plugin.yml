@@ -13,11 +13,29 @@ libraries:
 
 commands:
   shreminders:
-    description: Planifie un rappel de vote pour un joueur.
-    usage: /shreminders <joueur> <id>
-    permission: shreminders.admin
+    description: Planifie un rappel pour un joueur et administre les rappels.
+    usage: /shreminders <schedule|import|reload|list>
+    # Une sous-commande se délègue seule : la commande est ouverte à qui a l'un de ces droits
+    permission: shreminders.admin.schedule;shreminders.admin.import;shreminders.admin.reload;shreminders.admin.list
 
 permissions:
   shreminders.admin:
-    description: Permission pour utiliser la commande /shreminders.
+    description: Toute l'administration de SHReminders.
+    default: op
+    children:
+      shreminders.admin.schedule: true
+      shreminders.admin.import: true
+      shreminders.admin.reload: true
+      shreminders.admin.list: true
+  shreminders.admin.schedule:
+    description: Programmer un rappel pour un joueur (/shreminders schedule).
+    default: op
+  shreminders.admin.import:
+    description: Avec SHNetwork, reprendre reminders.yml dans la base du réseau.
+    default: op
+  shreminders.admin.reload:
+    description: Recharger config.yml et messages.yml.
+    default: op
+  shreminders.admin.list:
+    description: Consulter les rappels en attente.
     default: op

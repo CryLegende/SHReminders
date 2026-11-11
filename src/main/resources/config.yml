@@ -1,17 +1,32 @@
 # Configuration pour le plugin SHReminders
 
 # --- COMMANDES ---
-# /shreminders <joueur> <id_rappel_config>
+# /shreminders schedule <joueur> <id_rappel_config>
 #   Description: Programme un rappel pour un joueur (même hors ligne) basé sur une configuration
 #                définie dans la section "reminders" de ce fichier.
 #                Si un rappel avec le même <id_rappel_config> existe déjà pour ce joueur, il est remplacé.
-#   Permission: shreminders.admin
-#   Exemple: /shreminders Notch monPremierRappel
+#                L'ancienne forme /shreminders <joueur> <id_rappel_config> fonctionne toujours.
+#   Permission: shreminders.admin.schedule
+#   Exemple: /shreminders schedule Notch monPremierRappel
 #     -> Va chercher la configuration sous "reminders.monPremierRappel:"
 #
 # /shreminders import
 #   Description: Avec SHNetwork, reprend reminders.yml dans la base partagée, sans toucher aux rappels qui y sont déjà.
-#   Permission: shreminders.admin
+#   Permission: shreminders.admin.import
+#
+# /shreminders reload
+#   Description: Recharge config.yml et messages.yml. Un fichier illisible annule le rechargement : l'ancienne
+#                configuration reste active et le fichier fautif est indiqué. reminders.yml et la base ne sont pas
+#                touchés. Les rappels en attente dont l'identifiant n'est plus dans config.yml sont signalés : en mode
+#                local ils sont supprimés. La section "reseau" n'est lue qu'au démarrage.
+#   Permission: shreminders.admin.reload
+#
+# /shreminders list [joueur]
+#   Description: Rappels en attente : le nombre par identifiant, ou ceux d'un joueur avec le temps restant.
+#   Permission: shreminders.admin.list
+#
+# shreminders.admin donne toutes les permissions ci-dessus (op par défaut) ; chacune se donne aussi séparément.
+# Alias : aucun. Les textes des commandes sont dans messages.yml.
 #
 # --- PLUSIEURS SERVEURS DE JEU ---
 # Avec SHNetwork (voir la section "reseau" plus bas), les rappels sont dans la base partagée et chaque rappel n'est déclenché

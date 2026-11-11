@@ -1,10 +1,43 @@
-# Textes propres au mode réseau de SHReminders (SHNetwork). Les autres réponses de la commande sont celles d'avant.
-# Codes couleur &.
+# Messages de SHReminders. Codes couleur &. Un message vide n'est pas envoyé.
+# Variables : %id% (identifiant du rappel), %player% (joueur), %count% (nombre), %subcommands% (sous-commandes que
+# l'expéditeur peut utiliser), %file% (fichier illisible), %error% (cause), %time% (temps restant), %done% et %max%
+# (répétitions), %more% (lignes non affichées), %main% et %repeats% (état d'un rappel dans list).
 
-# /shreminders : la base partagée ne répond pas, le rappel n'a pas été programmé.
+# Commandes
+no_permission: "&7&l« &c&lSH &8&l» &7Vous n'avez pas la &cpermission&7."
+usage: "&7&l« &e&lSH &8&l» &7Utilisation : &e/shreminders <%subcommands%>&7."
+schedule_usage: "&7&l« &c&lSH &8&l» &7Utilisation : &c/shreminders schedule <joueur> <id>&7."
+unknown_reminder: "&7&l« &c&lSH &8&l» &7Aucun rappel dans la configuration pour l'id '&c%id%&7'."
+player_not_found_local: "&7&l« &c&lSH &8&l» &7Le joueur '&c%player%&7' n'a pas été trouvé ou n'a jamais joué sur ce serveur."
+scheduled: "&7&l« &a&lSH &8&l» &7Rappel '&a%id%&7' programmé pour &a%player%&7."
+import_inactive: "&7&l« &c&lSH &8&l» &7L'importation demande &cSHNetwork &7et &creseau.actif: true &7dans config.yml."
+
+# /shreminders reload
+reloaded: "&7&l« &a&lSH &8&l» &7Configuration et messages &arechargés&7 (&a%count% &7rappels configurés)."
+reload_error: "&7&l« &c&lSH &8&l» &cRechargement annulé&7, l'ancienne configuration reste active. &f%file% &7: &c%error%"
+reload_orphans_local: "&7&l« &6&lSH &8&l» &6%count% &7rappel(s) en attente ont un identifiant absent de config.yml : ils vont être &6supprimés&7."
+reload_orphans_network: "&7&l« &6&lSH &8&l» &6%count% &7rappel(s) en attente ont un identifiant absent de config.yml : ce serveur les &6ignore&7."
+reload_restart: "&7&l« &6&lSH &8&l» &6reseau.* &7a changé : un redémarrage est nécessaire pour qu'il soit pris en compte."
+
+# /shreminders list
+list_empty: "&7&l« &e&lSH &8&l» &7Aucun rappel en attente."
+list_summary: "&7&l« &e&lSH &8&l» &e%count% &7rappel(s) en attente :"
+list_id: "&8- &f%id% &7: &e%count%"
+list_player_header: "&7&l« &e&lSH &8&l» &7Rappels en attente de &e%player% &7(%count%) :"
+list_player_none: "&7&l« &e&lSH &8&l» &e%player% &7n'a aucun rappel en attente."
+list_reminder: "&8- &f%id% &7: %main% &8| &7%repeats%"
+list_main_in: "principal dans &e%time%"
+list_main_done: "principal &adéclenché"
+list_repeat_none: "sans répétition"
+list_repeat_max: "répétitions &e%done%&7/&e%max%"
+list_repeat_endless: "répétitions &e%done%"
+list_more: "&7... et &e%more% &7autre(s)."
+
+# Mode réseau
+# /shreminders schedule : la base partagée ne répond pas, le rappel n'a pas été programmé.
 database_error: "&7&l« &c&lSH &8&l» &7La base des rappels &cne répond pas&7, le rappel n'a pas été programmé."
 
-# /shreminders : joueur ni connecté sur le réseau, ni connu de la table des comptes, ni déjà venu sur ce serveur.
+# /shreminders schedule : joueur ni connecté sur le réseau, ni connu de la table des comptes, ni déjà venu sur ce serveur.
 # %player% = pseudo tapé.
 player_not_found: "&7&l« &c&lSH &8&l» &7Le joueur &c%player%&7 n'a pas été trouvé sur le réseau."
 

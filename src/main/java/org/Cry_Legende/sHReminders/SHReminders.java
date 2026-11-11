@@ -17,9 +17,8 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Registry;
 import org.bukkit.Sound;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -28,7 +27,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 
-public class SHReminders extends JavaPlugin implements CommandExecutor {
+public class SHReminders extends JavaPlugin {
 
     private File remindersFile;
     private YamlConfiguration remindersConfig;
@@ -42,13 +41,21 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
     private boolean remindersLoaded;
     // Mode réseau (SHNetwork présent) : null en mode local
     private NetworkReminders network;
-    private YamlConfiguration networkMessages;
+    // Textes de messages.yml ; le fichier est lu dans tous les modes
+    private volatile YamlConfiguration messages;
+    // Section reseau au démarrage : elle n'est lue qu'à ce moment, un reload qui la change le signale
+    private Map<String, Object> networkSettings = Map.of();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         cacheConfiguredReminderIds();
-        getCommand("shreminders").setExecutor(this);
+        loadMessages();
+        networkSettings = networkSettingsNow();
+        PluginCommand command = getCommand("shreminders");
+        ReminderCommand executor = new ReminderCommand(this);
+        command.setExecutor(executor);
+        command.setTabCompleter(executor);
 
         remindersFile = new File(getDataFolder(), "reminders.yml");
         if (!remindersFile.exists()) {
@@ -109,28 +116,13 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
         }
     }
 
-    @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("shreminders.admin")) {
-            sender.sendMessage(ChatColor.RED + "Vous n'avez pas la permission.");
-            return true;
-        }
-        if (network != null && args.length == 1 && args[0].equalsIgnoreCase("import")) {
-            network.importFile(sender);
-            return true;
-        }
-        if (args.length < 2) {
-            sender.sendMessage(ChatColor.RED + "Usage: /shreminders <joueur> <id>");
-            return true;
-        }
-
-        final String playerNameInput = args[0];
-        final String reminderId = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+    /** Programme le rappel de config.yml {@code reminders.<id>} pour un joueur, même hors ligne. */
+    void schedule(CommandSender sender, String playerNameInput, String reminderId) {
         final String configPath = "reminders." + reminderId;
 
         if (!getConfig().contains(configPath)) {
-            sender.sendMessage(ChatColor.RED + "Aucun rappel trouvé dans la configuration pour l'id '" + reminderId + "'");
-            return true;
+            sender.sendMessage(message("unknown_reminder", "%id%", reminderId));
+            return;
         }
 
         // --- Début de la section asynchrone ---
@@ -143,7 +135,7 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
 
             if (offlinePlayer == null || offlinePlayer.getUniqueId() == null || offlinePlayer.getName() == null) {
                 Bukkit.getScheduler().runTask(this, () -> {
-                    sender.sendMessage(ChatColor.RED + "Le joueur '" + playerNameInput + "' n'a pas été trouvé ou n'a jamais joué sur ce serveur.");
+                    sender.sendMessage(message("player_not_found_local", "%player%", playerNameInput));
                 });
                 return;
             }
@@ -186,12 +178,53 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
             saveReminders(); // I/O : on est déjà dans une tâche asynchrone, hors du verrou de la map
 
             Bukkit.getScheduler().runTask(this, () -> {
-                sender.sendMessage(ChatColor.GREEN + "Rappel '" + reminderId + "' programmé pour " + canonicalPlayerName + ".");
+                sender.sendMessage(message("scheduled", "%id%", reminderId, "%player%", canonicalPlayerName));
             });
         });
         // --- Fin de la section asynchrone ---
+    }
 
-        return true;
+    /**
+     * /shreminders reload. config.yml et messages.yml sont lus avant tout remplacement : si l'un est illisible,
+     * l'ancienne configuration reste active. reminders.yml et la base ne sont pas touchés.
+     */
+    void reloadFiles(CommandSender sender) {
+        YamlConfiguration loadedMessages;
+        try {
+            ConfigFiles.read(this, "config.yml");
+            loadedMessages = ConfigFiles.read(this, "messages.yml");
+        } catch (ConfigFiles.ReadError e) {
+            getLogger().severe("Reload annulé, " + e.file() + " illisible : " + e.detail());
+            sender.sendMessage(message("reload_error", "%file%", e.file(), "%error%", e.detail()));
+            return;
+        }
+        reloadConfig();
+        cacheConfiguredReminderIds();
+        messages = loadedMessages;
+        sender.sendMessage(message("reloaded", "%count%", String.valueOf(configuredReminderIds.size())));
+
+        // Rappels en attente dont l'identifiant n'est plus dans config.yml : le planificateur local les supprime
+        int orphans;
+        synchronized (activeReminders) {
+            orphans = (int) activeReminders.values().stream().filter(rem -> !configuredReminderIds.contains(rem.reminderId)).count();
+        }
+        if (orphans > 0) {
+            sender.sendMessage(message(network == null ? "reload_orphans_local" : "reload_orphans_network", "%count%", String.valueOf(orphans)));
+        }
+        if (!networkSettings.equals(networkSettingsNow())) {
+            sender.sendMessage(message("reload_restart"));
+        }
+    }
+
+    // Valeurs de la section reseau, lues au démarrage seulement
+    private Map<String, Object> networkSettingsNow() {
+        ConfigurationSection section = getConfig().getConfigurationSection("reseau");
+        return section == null ? Map.of() : section.getValues(true);
+    }
+
+    /** Le mode réseau est actif (SHNetwork présent et reseau.actif vrai). */
+    NetworkReminders network() {
+        return network;
     }
 
     private void startScheduler() {
@@ -505,7 +538,6 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
         if (!getServer().getPluginManager().isPluginEnabled("SHNetwork")) return true;
         try {
             network = NetworkReminders.open(this);
-            loadNetworkMessages();
             getLogger().info("SHNetwork détecté : rappels en base partagée, chaque rappel déclenché une seule fois pour tout le réseau.");
             return true;
         } catch (RuntimeException | LinkageError e) {
@@ -516,23 +548,32 @@ public class SHReminders extends JavaPlugin implements CommandExecutor {
         }
     }
 
-    /** Textes propres au mode réseau (messages.yml) ; un fichier plus ancien reprend les textes du jar. */
-    private void loadNetworkMessages() {
-        File file = new File(getDataFolder(), "messages.yml");
-        if (!file.exists()) saveResource("messages.yml", false);
-        networkMessages = YamlConfiguration.loadConfiguration(file);
-        try (InputStream in = getResource("messages.yml")) {
-            if (in != null) {
-                networkMessages.setDefaults(YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8)));
-            }
-        } catch (IOException e) {
-            getLogger().warning("Impossible de lire messages.yml du jar : " + e.getMessage());
+    /** messages.yml : un fichier illisible n'empêche pas le démarrage, les textes du jar servent jusqu'au prochain reload. */
+    private void loadMessages() {
+        try {
+            messages = ConfigFiles.read(this, "messages.yml");
+        } catch (ConfigFiles.ReadError e) {
+            getLogger().severe(e.file() + " illisible, textes du jar utilisés : " + e.detail());
+            messages = ConfigFiles.bundled(this, "messages.yml");
         }
     }
 
-    /** Texte de messages.yml, avec les codes couleur &. */
+    /** Texte de messages.yml avec ses variables (par paires), codes couleur & traduits. */
+    String message(String key, String... replacements) {
+        // getString(clé) lit le fichier du serveur puis celui du jar ; getString(clé, défaut) ignorerait celui du jar
+        String text = messages.getString(key);
+        if (text == null) {
+            text = "";
+        }
+        for (int i = 0; i + 1 < replacements.length; i += 2) {
+            text = text.replace(replacements[i], replacements[i + 1]);
+        }
+        return ChatColor.translateAlternateColorCodes('&', text);
+    }
+
+    /** Texte du mode réseau (messages.yml), avec les codes couleur &. */
     String networkMessage(String key) {
-        return ChatColor.translateAlternateColorCodes('&', networkMessages.getString(key, ""));
+        return message(key);
     }
 
     /** Exécute sur le fil principal (appelable de n'importe quel fil). */
