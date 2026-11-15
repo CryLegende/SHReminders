@@ -38,7 +38,10 @@ public class SHReminders extends JavaPlugin {
     // Identifiants des rappels définis dans config.yml : la tâche de chaque seconde les consulte pour chaque rappel actif
     private Set<String> configuredReminderIds = Set.of();
     // Vrai une fois reminders.yml chargé : sans cela, l'arrêt écraserait le fichier par une liste vide
-    private boolean remindersLoaded;
+    private volatile boolean remindersLoaded;
+    // Levé quand la lecture de reminders.yml est finie (réussie ou non) : une commande /shreminders schedule lancée avant
+    // attend, sinon son enregistrement écraserait le fichier avec une liste partielle
+    private final java.util.concurrent.CountDownLatch remindersReady = new java.util.concurrent.CountDownLatch(1);
     // Mode réseau (SHNetwork présent) : null en mode local
     private NetworkReminders network;
     // Textes de messages.yml ; le fichier est lu dans tous les modes
@@ -71,10 +74,23 @@ public class SHReminders extends JavaPlugin {
             return;
         }
         if (network == null) {
-            remindersConfig = YamlConfiguration.loadConfiguration(remindersFile);
-            loadReminders();
-            startScheduler();
-            remindersLoaded = true;
+            // reminders.yml pèse plusieurs Mo : sa lecture se fait hors du thread principal, le démarrage du serveur n'attend pas
+            Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+                try {
+                    loadReminders();
+                    remindersLoaded = true;
+                } catch (RuntimeException e) {
+                    getLogger().log(Level.SEVERE, "Lecture de reminders.yml impossible, rappels non chargés et fichier laissé intact.", e);
+                    return;
+                } finally {
+                    remindersReady.countDown();
+                }
+                if (isEnabled()) {
+                    runMain(() -> {
+                        if (isEnabled()) startScheduler();
+                    });
+                }
+            });
         } else {
             // les rappels sont dans la base partagée : le planificateur du réseau les réclame un à un
             network.start();
@@ -129,6 +145,16 @@ public class SHReminders extends JavaPlugin {
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             if (network != null) {
                 network.schedule(sender, playerNameInput, reminderId, configPath);
+                return;
+            }
+            try {
+                remindersReady.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (!remindersLoaded) {
+                Bukkit.getScheduler().runTask(this, () -> sender.sendMessage(message("reminders_unavailable")));
                 return;
             }
             OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerNameInput);
@@ -475,9 +501,10 @@ public class SHReminders extends JavaPlugin {
     }
 
     private void loadReminders() {
+        // Lecture du fichier avant de prendre le verrou : le thread principal (placeholders) n'attend pas l'analyse YAML
+        remindersConfig = YamlConfiguration.loadConfiguration(remindersFile);
         synchronized (activeReminders) {
             activeReminders.clear();
-            remindersConfig = YamlConfiguration.loadConfiguration(remindersFile); // Recharger depuis le disque
             for (String encodedKey : remindersConfig.getKeys(false)) {
                 ConfigurationSection section = remindersConfig.getConfigurationSection(encodedKey);
                 if (section == null) continue;

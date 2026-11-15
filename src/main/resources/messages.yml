@@ -10,6 +10,7 @@ schedule_usage: "&7&l« &c&lSH &8&l» &7Utilisation : &c/shreminders schedule <j
 unknown_reminder: "&7&l« &c&lSH &8&l» &7Aucun rappel dans la configuration pour l'id '&c%id%&7'."
 player_not_found_local: "&7&l« &c&lSH &8&l» &7Le joueur '&c%player%&7' n'a pas été trouvé ou n'a jamais joué sur ce serveur."
 scheduled: "&7&l« &a&lSH &8&l» &7Rappel '&a%id%&7' programmé pour &a%player%&7."
+reminders_unavailable: "&7&l« &c&lSH &8&l» &cLes rappels ne sont pas chargés&7, la programmation est impossible. Voir la console."
 import_inactive: "&7&l« &c&lSH &8&l» &7L'importation demande &cSHNetwork &7et &creseau.actif: true &7dans config.yml."
 
 # /shreminders reload
