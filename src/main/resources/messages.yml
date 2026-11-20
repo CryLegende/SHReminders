@@ -1,7 +1,8 @@
 # Messages de SHReminders. Codes couleur &. Un message vide n'est pas envoyé.
 # Variables : %id% (identifiant du rappel), %player% (joueur), %count% (nombre), %subcommands% (sous-commandes que
 # l'expéditeur peut utiliser), %file% (fichier illisible), %error% (cause), %time% (temps restant), %done% et %max%
-# (répétitions), %more% (lignes non affichées), %main% et %repeats% (état d'un rappel dans list).
+# (répétitions), %more% (lignes non affichées), %main% et %repeats% (état d'un rappel dans list), %group% (groupe de
+# rappels), %groups% (groupes coupés par un joueur).
 
 # Commandes
 no_permission: "&7&l« &c&lSH &8&l» &7Vous n'avez pas la &cpermission&7."
@@ -19,6 +20,7 @@ reload_error: "&7&l« &c&lSH &8&l» &cRechargement annulé&7, l'ancienne configu
 reload_orphans_local: "&7&l« &6&lSH &8&l» &6%count% &7rappel(s) en attente ont un identifiant absent de config.yml : ils vont être &6supprimés&7."
 reload_orphans_network: "&7&l« &6&lSH &8&l» &6%count% &7rappel(s) en attente ont un identifiant absent de config.yml : ce serveur les &6ignore&7."
 reload_restart: "&7&l« &6&lSH &8&l» &6reseau.* &7a changé : un redémarrage est nécessaire pour qu'il soit pris en compte."
+reload_restart_preferences: "&7&l« &6&lSH &8&l» &6preferences.* &7a changé : un redémarrage est nécessaire pour qu'il soit pris en compte."
 
 # /shreminders list
 list_empty: "&7&l« &e&lSH &8&l» &7Aucun rappel en attente."
@@ -33,6 +35,19 @@ list_repeat_none: "sans répétition"
 list_repeat_max: "répétitions &e%done%&7/&e%max%"
 list_repeat_endless: "répétitions &e%done%"
 list_more: "&7... et &e%more% &7autre(s)."
+
+# /shreminders notifications
+notifications_usage: "&7&l« &c&lSH &8&l» &7Utilisation : &c/shreminders notifications <joueur> [<groupe> <activer|desactiver>]&7."
+notifications_inactive: "&7&l« &c&lSH &8&l» &7Aucune base dans la section &cpreferences &7de config.yml : les joueurs ne peuvent pas couper leurs rappels."
+notifications_none: "&7&l« &e&lSH &8&l» &e%player% &7voit tous ses rappels en jeu."
+notifications_list: "&7&l« &e&lSH &8&l» &e%player% &7a coupé en jeu les rappels : &e%groups%&7."
+notifications_muted: "&7&l« &a&lSH &8&l» &7Rappels &e%group% &7coupés en jeu pour &a%player%&7."
+notifications_unmuted: "&7&l« &a&lSH &8&l» &7Rappels &e%group% &7rétablis en jeu pour &a%player%&7."
+notifications_error: "&7&l« &c&lSH &8&l» &7La base des rappels &cne répond pas&7, rien n'a été changé."
+
+# %shreminders_notifications_<groupe>% : le joueur voit en jeu les rappels de ce groupe, ou les a coupés.
+placeholder_notifications_on: "Oui"
+placeholder_notifications_off: "Non"
 
 # Mode réseau
 # /shreminders schedule : la base partagée ne répond pas, le rappel n'a pas été programmé.

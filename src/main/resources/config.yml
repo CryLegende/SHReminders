@@ -26,6 +26,11 @@
 #   Description: Rappels en attente : le nombre par identifiant, ou ceux d'un joueur avec le temps restant.
 #   Permission: shreminders.admin.list
 #
+# /shreminders notifications <joueur> [<groupe> <activer|desactiver>]
+#   Description: Sans groupe, les groupes de rappels que le joueur a coupés. Avec un groupe, les coupe (desactiver) ou
+#                les rétablit (activer) pour lui. Voir la section "preferences" plus bas.
+#   Permission: shreminders.admin.notifications
+#
 # shreminders.admin donne toutes les permissions ci-dessus (op par défaut) ; chacune se donne aussi séparément.
 # Alias : aucun. Les textes des commandes sont dans messages.yml.
 #
@@ -60,6 +65,9 @@
 #   %shreminders_next_vote%
 #   %shreminders_next_quetejournaliere%
 #
+#   %shreminders_notifications_<groupe>% : placeholder_notifications_on de messages.yml si le joueur voit en jeu les
+#   rappels de ce groupe, placeholder_notifications_off s'il les a coupés.
+#
 # --- STRUCTURE DE CONFIGURATION D'UN RAPPEL ---
 # reminders:
 #   <id_rappel_config>:   # Identifiant unique pour ce type de rappel
@@ -73,6 +81,8 @@
 #     soundVolume: <nombre> # Volume du son (ex: 1.0)
 #     soundPitch: <nombre>  # Tonalité du son (ex: 1.0)
 #     placeholderId: "<id_court>" # (Optionnel) ID court pour le placeholder
+#     groupe: "<groupe>"    # (Optionnel) Groupe du rappel : le joueur peut couper en jeu tous les rappels d'un groupe
+#                           # (lettres minuscules, chiffres, - et _, 32 caractères au plus ; voir "preferences")
 #
 #     repeat:               # (Optionnel) Section pour les rappels répétitifs
 #       enabled: <true|false>
@@ -120,9 +130,26 @@ reseau:
     # avec un message ; les rappels échus attendent qu'elle revienne.
     delai-ms: 5000
 
+# Rappels coupés par les joueurs. Un joueur peut couper l'affichage en jeu (titre, message, barre d'action, son) des
+# rappels d'un groupe (clé "groupe" d'un rappel) ; la commande console du rappel est lancée quand même.
+# Les choix sont dans la table ci-dessous : une ligne (uuid, reminder_group, player_name) par joueur et par groupe coupé.
+# Elle se modifie avec /shreminders notifications ou par un autre outil (le site, par exemple) : le plugin la relit
+# toutes les "relecture-secondes". La table est créée si elle manque. Sans url, personne ne peut couper ses rappels.
+# Demande un redémarrage : tout le bloc.
+preferences:
+  base-de-donnees:
+    url: ""
+    utilisateur: ""
+    mot-de-passe: CHANGE_ME
+    # Délai maximal de connexion à la base, en millisecondes
+    delai-ms: 5000
+  table: shreminders_muted
+  relecture-secondes: 30
+
 reminders:
   "Vote":
     placeholderId: vote
+    groupe: vote
     delay: 180 # en minutes
     title: "&r"
     subtitle: "&7&l« &a&lVote &adisponible &8&l»"

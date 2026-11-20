@@ -48,6 +48,10 @@ public class SHReminders extends JavaPlugin {
     private volatile YamlConfiguration messages;
     // Section reseau au démarrage : elle n'est lue qu'à ce moment, un reload qui la change le signale
     private Map<String, Object> networkSettings = Map.of();
+    // Groupes de rappels coupés par les joueurs : null sans base dans la section preferences
+    private MutedGroups mutedGroups;
+    // Section preferences au démarrage, même règle que reseau
+    private Map<String, Object> preferenceSettings = Map.of();
 
     @Override
     public void onEnable() {
@@ -55,6 +59,14 @@ public class SHReminders extends JavaPlugin {
         cacheConfiguredReminderIds();
         loadMessages();
         networkSettings = networkSettingsNow();
+        preferenceSettings = sectionNow("preferences");
+        try {
+            mutedGroups = MutedGroups.open(this);
+            if (mutedGroups != null) mutedGroups.start();
+        } catch (RuntimeException | LinkageError e) {
+            mutedGroups = null;
+            getLogger().log(Level.SEVERE, "Section preferences inutilisable : les rappels coupés par les joueurs sont ignorés.", e);
+        }
         PluginCommand command = getCommand("shreminders");
         ReminderCommand executor = new ReminderCommand(this);
         command.setExecutor(executor);
@@ -118,6 +130,10 @@ public class SHReminders extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (mutedGroups != null) {
+            mutedGroups.close();
+            mutedGroups = null;
+        }
         if (network != null) {
             // reminders.yml n'est pas réécrit : la base fait foi
             network.close();
@@ -242,12 +258,30 @@ public class SHReminders extends JavaPlugin {
         if (!networkSettings.equals(networkSettingsNow())) {
             sender.sendMessage(message("reload_restart"));
         }
+        if (!preferenceSettings.equals(sectionNow("preferences"))) {
+            sender.sendMessage(message("reload_restart_preferences"));
+        }
     }
 
     // Valeurs de la section reseau, lues au démarrage seulement
     private Map<String, Object> networkSettingsNow() {
-        ConfigurationSection section = getConfig().getConfigurationSection("reseau");
+        return sectionNow("reseau");
+    }
+
+    private Map<String, Object> sectionNow(String path) {
+        ConfigurationSection section = getConfig().getConfigurationSection(path);
         return section == null ? Map.of() : section.getValues(true);
+    }
+
+    /** Groupes coupés par les joueurs ; null quand la section preferences n'a pas de base. */
+    MutedGroups mutedGroups() {
+        return mutedGroups;
+    }
+
+    /** Le joueur a coupé le groupe de ce rappel : rien ne s'affiche en jeu, la commande console part quand même. */
+    private boolean hiddenFor(Player player, String configPath) {
+        MutedGroups muted = mutedGroups;
+        return muted != null && muted.isMuted(player.getUniqueId(), getConfig().getString(configPath + ".groupe", ""));
     }
 
     /** Le mode réseau est actif (SHNetwork présent et reseau.actif vrai). */
@@ -371,6 +405,7 @@ public class SHReminders extends JavaPlugin {
         // S'assurer que toutes les interactions API Bukkit (sendTitle, sendMessage, playSound)
         // sont exécutées sur le thread principal.
         Bukkit.getScheduler().runTask(this, () -> {
+            if (hiddenFor(player, configPath)) return;
             String title = getConfig().getString(configPath + ".title", "");
             String subtitle = getConfig().getString(configPath + ".subtitle", "");
             String message = getConfig().getString(configPath + ".message", "");
@@ -414,6 +449,13 @@ public class SHReminders extends JavaPlugin {
             float repVolume = (float) getConfig().getDouble(configPath + ".repeat.soundVolume", 1.0);
             float repPitch = (float) getConfig().getDouble(configPath + ".repeat.soundPitch", 1.0);
 
+            if (!repCommand.isEmpty()) {
+                String finalRepCommand = ChatColor.translateAlternateColorCodes('&', repCommand)
+                    .replace("%player%", player.getName());
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalRepCommand);
+            }
+            if (hiddenFor(player, configPath)) return;
+
             if (!repTitle.isEmpty() || !repSubtitle.isEmpty()) {
                 player.sendTitle(
                     ChatColor.translateAlternateColorCodes('&', repTitle),
@@ -423,11 +465,6 @@ public class SHReminders extends JavaPlugin {
             }
             if (!repMessage.isEmpty()) {
                 player.sendMessage(ChatColor.translateAlternateColorCodes('&', repMessage));
-            }
-            if (!repCommand.isEmpty()) {
-                String finalRepCommand = ChatColor.translateAlternateColorCodes('&', repCommand)
-                    .replace("%player%", player.getName());
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalRepCommand);
             }
             if (!repActionbar.isEmpty()) {
                 player.sendActionBar(ChatColor.translateAlternateColorCodes('&', repActionbar));
@@ -701,6 +738,13 @@ public class SHReminders extends JavaPlugin {
         @Override
         public String onPlaceholderRequest(Player player, String identifier) {
             if (player == null) return "none";
+
+            // %shreminders_notifications_<groupe>% : le joueur voit-il en jeu les rappels de ce groupe ?
+            if (identifier.startsWith("notifications_")) {
+                MutedGroups muted = plugin.mutedGroups();
+                boolean shown = muted == null || !muted.isMuted(player.getUniqueId(), identifier.substring("notifications_".length()));
+                return plugin.message(shown ? "placeholder_notifications_on" : "placeholder_notifications_off");
+            }
 
             if (identifier.startsWith("next_")) {
                 String placeholderId = identifier.substring("next_".length()).toLowerCase();

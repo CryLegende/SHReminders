@@ -1,6 +1,7 @@
 package org.Cry_Legende.sHReminders;
 
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.UUID;
 
 /**
  * /shreminders. La forme historique /shreminders <joueur> <id> reste acceptée : un premier argument qui n'est pas
@@ -25,6 +27,7 @@ final class ReminderCommand implements TabExecutor {
     private static final String IMPORT = "shreminders.admin.import";
     private static final String RELOAD = "shreminders.admin.reload";
     private static final String LIST = "shreminders.admin.list";
+    private static final String NOTIFICATIONS = "shreminders.admin.notifications";
 
     // Lignes affichées au plus par /shreminders list
     private static final int LIST_LINES = 15;
@@ -42,11 +45,12 @@ final class ReminderCommand implements TabExecutor {
         if (sender.hasPermission(IMPORT)) allowed.add("import");
         if (sender.hasPermission(RELOAD)) allowed.add("reload");
         if (sender.hasPermission(LIST)) allowed.add("list");
+        if (sender.hasPermission(NOTIFICATIONS)) allowed.add("notifications");
         return allowed;
     }
 
     private static boolean reserved(String name) {
-        return name.equals("schedule") || name.equals("import") || name.equals("reload") || name.equals("list");
+        return name.equals("schedule") || name.equals("import") || name.equals("reload") || name.equals("list") || name.equals("notifications");
     }
 
     @Override
@@ -89,6 +93,7 @@ final class ReminderCommand implements TabExecutor {
                 }
             }
             case "reload" -> plugin.reloadFiles(sender);
+            case "notifications" -> notifications(sender, args);
             default -> list(sender, args);
         }
         return true;
@@ -146,6 +151,57 @@ final class ReminderCommand implements TabExecutor {
         }
     }
 
+    /**
+     * /shreminders notifications <joueur> : les groupes de rappels que le joueur a coupés.
+     * /shreminders notifications <joueur> <groupe> <activer|desactiver> : rétablit ou coupe un groupe pour lui.
+     */
+    private void notifications(CommandSender sender, String[] args) {
+        MutedGroups muted = plugin.mutedGroups();
+        if (muted == null) {
+            sender.sendMessage(plugin.message("notifications_inactive"));
+            return;
+        }
+        boolean show = args.length == 2;
+        String action = args.length == 4 ? args[3].toLowerCase(Locale.ROOT) : "";
+        String group = args.length == 4 ? MutedGroups.normalize(args[2]) : "";
+        if (!show && (args.length != 4 || !MutedGroups.GROUP.matcher(group).matches() || !(action.equals("activer") || action.equals("desactiver")))) {
+            sender.sendMessage(plugin.message("notifications_usage"));
+            return;
+        }
+
+        // Joueur connecté, puis déjà venu sur ce serveur, sinon UUID hors ligne du pseudo tapé (celui du réseau)
+        Player online = Bukkit.getPlayerExact(args[1]);
+        OfflinePlayer cached = online != null ? online : Bukkit.getOfflinePlayerIfCached(args[1]);
+        String name = cached != null && cached.getName() != null ? cached.getName() : args[1];
+        UUID playerId = cached != null ? cached.getUniqueId() : MutedGroups.offlineUuid(name);
+
+        if (show) {
+            List<String> groups = muted.groupsOf(playerId);
+            sender.sendMessage(groups.isEmpty()
+                ? plugin.message("notifications_none", "%player%", name)
+                : plugin.message("notifications_list", "%player%", name, "%groups%", String.join(", ", groups)));
+            return;
+        }
+        boolean mute = action.equals("desactiver");
+        muted.set(playerId, name, group, mute).whenComplete((ignored, error) -> plugin.runMain(() -> {
+            if (error != null) {
+                plugin.getLogger().warning("Réglage des rappels de " + name + " non enregistré : " + error.getMessage());
+                sender.sendMessage(plugin.message("notifications_error"));
+            } else {
+                sender.sendMessage(plugin.message(mute ? "notifications_muted" : "notifications_unmuted", "%player%", name, "%group%", group));
+            }
+        }));
+    }
+
+    /** Groupes écrits dans config.yml (clé « groupe » des rappels). */
+    private List<String> configuredGroups() {
+        return plugin.configuredReminderIds().stream()
+            .map(id -> MutedGroups.normalize(plugin.getConfig().getString("reminders." + id + ".groupe", "")))
+            .filter(group -> !group.isEmpty())
+            .distinct()
+            .toList();
+    }
+
     /** Durée en heures et minutes, ou minutes et secondes sous l'heure. */
     private static String duration(long millis) {
         long seconds = Math.max(0, millis / 1000);
@@ -164,8 +220,11 @@ final class ReminderCommand implements TabExecutor {
         if (args.length == 1) {
             completions.addAll(allowed);
             if (canSchedule) completions.addAll(playerNames());
-        } else if (args.length == 2 && (first.equals("list") && allowed.contains("list") || first.equals("schedule") && canSchedule)) {
+        } else if (args.length == 2 && (first.equals("list") && allowed.contains("list") || first.equals("schedule") && canSchedule
+            || first.equals("notifications") && allowed.contains("notifications"))) {
             completions.addAll(playerNames());
+        } else if (first.equals("notifications") && allowed.contains("notifications") && (args.length == 3 || args.length == 4)) {
+            completions.addAll(args.length == 3 ? configuredGroups() : List.of("activer", "desactiver"));
         } else if (canSchedule && (args.length == 2 && !reserved(first) || args.length == 3 && first.equals("schedule"))) {
             // Identifiants de config.yml (ceux qui contiennent un espace ne se complètent pas : l'espace sépare les arguments)
             plugin.configuredReminderIds().stream().filter(id -> id.indexOf(' ') < 0).forEach(completions::add);

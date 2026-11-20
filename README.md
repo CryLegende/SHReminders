@@ -32,16 +32,18 @@ Avec `SHNetwork`, les rappels sont communs à tous les serveurs Opale et chaque 
 | `/shreminders import` | — | Avec SHNetwork : reprend `reminders.yml` dans la base du réseau. | `shreminders.admin.import` |
 | `/shreminders reload` | — | Recharge `config.yml` et `messages.yml`. Un fichier illisible annule le rechargement : l'ancienne configuration reste active et le fichier fautif est indiqué. Les rappels en attente dont l'identifiant a disparu de `config.yml` sont signalés. La section `reseau` n'est lue qu'au démarrage. | `shreminders.admin.reload` |
 | `/shreminders list [joueur]` | — | Rappels en attente : le nombre par identifiant, ou ceux d'un joueur avec le temps restant. | `shreminders.admin.list` |
+| `/shreminders notifications <joueur> [<groupe> <activer\|desactiver>]` | — | Groupes de rappels coupés par un joueur ; avec un groupe, les coupe ou les rétablit pour lui (voir « Rappels coupés par les joueurs »). | `shreminders.admin.notifications` |
 
 ## Permissions
 
 | Permission | Description | Par défaut |
 |---|---|---|
-| `shreminders.admin` | Toute l'administration (parent des quatre permissions suivantes). | `op` |
+| `shreminders.admin` | Toute l'administration (parent des cinq permissions suivantes). | `op` |
 | `shreminders.admin.schedule` | Programmer un rappel pour un joueur. | `op` |
 | `shreminders.admin.import` | Avec SHNetwork, reprendre `reminders.yml` dans la base du réseau. | `op` |
 | `shreminders.admin.reload` | Recharger `config.yml` et `messages.yml`. | `op` |
 | `shreminders.admin.list` | Consulter les rappels en attente. | `op` |
+| `shreminders.admin.notifications` | Voir et changer les groupes de rappels coupés par un joueur. | `op` |
 
 ## Configuration
 
@@ -54,6 +56,15 @@ plugins/SHReminders/
 </pre>
 
 `messages.yml` contient les textes des commandes et ceux du mode réseau. La table du mode réseau est décrite dans <a href="sql/schema.sql">sql/schema.sql</a>.
+
+## Rappels coupés par les joueurs
+
+Un rappel peut porter un `groupe` (par exemple `vote` sur tous les rappels de vote). Un joueur qui a coupé un groupe ne voit plus en jeu les rappels de ce groupe : ni titre, ni message, ni barre d'action, ni son. La commande console du rappel est lancée quand même : un message privé Discord, par exemple, garde son propre réglage.
+
+- **Données.** Table `preferences.table` (par défaut `shreminders_muted`) : une ligne `(uuid, reminder_group, player_name)` par joueur et par groupe coupé, créée si elle manque. L'UUID est celui du joueur en jeu.
+- **Qui écrit.** `/shreminders notifications`, ou tout autre outil qui a les droits sur la table (le site, par exemple). Le plugin relit la table entière toutes les `preferences.relecture-secondes` (30 par défaut) et ne consulte qu'une copie en mémoire ; une base injoignable garde la dernière copie.
+- **Placeholder.** `%shreminders_notifications_<groupe>%` rend `placeholder_notifications_on` ou `placeholder_notifications_off` de `messages.yml`.
+- **Sans base.** `preferences.base-de-donnees.url` vide : personne ne peut couper ses rappels, tout s'affiche comme avant.
 
 ## Mode réseau (SHNetwork)
 
@@ -75,7 +86,7 @@ Quand `SHNetwork` est installé et que `reseau.actif` vaut `true` (valeur par d�
 
 1. Base : `mysql -u root < sql/schema.sql` (crée `reminders_active` et l'utilisateur `shreminders`, avec lecture seule sur la table des comptes). Remplacer `CHANGE_ME` par le mot de passe.
 2. `plugins/SHReminders/config.yml`, section `reseau` : `url`, `utilisateur` et `mot-de-passe`. La même base et les mêmes rappels sur tous les serveurs.
-3. Poser le jar sur chaque serveur, avec SHNetwork. Le jar charge HikariCP et le pilote MariaDB par `libraries:` (le serveur ne les embarque pas) ; sans SHNetwork, ils ne sont pas utilisés.
+3. Poser le jar sur chaque serveur, avec SHNetwork. Le jar charge HikariCP et le pilote MariaDB par `libraries:` (le serveur ne les embarque pas) ; ils servent au mode réseau et à la section `preferences`.
 4. `/shreminders import` sur un serveur.
 
 Au démarrage, la console indique `SHNetwork détecté : rappels en base partagée` puis le nombre de rappels chargés.

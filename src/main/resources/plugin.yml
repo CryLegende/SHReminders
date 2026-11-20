@@ -6,7 +6,7 @@ author: Cry_Legende
 # SHNetwork est facultatif : sans lui, les rappels restent locaux à ce serveur comme avant.
 softdepend: [SHNetwork]
 # Chargées par Paper dans le classloader du plugin : le serveur n'embarque que les pilotes MySQL et SQLite.
-# Seul le mode réseau (rappels en MariaDB) s'en sert.
+# Servent au mode réseau (rappels en MariaDB) et à la table des rappels coupés par les joueurs (section preferences).
 libraries:
   - com.zaxxer:HikariCP:5.1.0
   - org.mariadb.jdbc:mariadb-java-client:3.4.1
@@ -14,9 +14,9 @@ libraries:
 commands:
   shreminders:
     description: Planifie un rappel pour un joueur et administre les rappels.
-    usage: /shreminders <schedule|import|reload|list>
+    usage: /shreminders <schedule|import|reload|list|notifications>
     # Une sous-commande se délègue seule : la commande est ouverte à qui a l'un de ces droits
-    permission: shreminders.admin.schedule;shreminders.admin.import;shreminders.admin.reload;shreminders.admin.list
+    permission: shreminders.admin.schedule;shreminders.admin.import;shreminders.admin.reload;shreminders.admin.list;shreminders.admin.notifications
 
 permissions:
   shreminders.admin:
@@ -27,6 +27,7 @@ permissions:
       shreminders.admin.import: true
       shreminders.admin.reload: true
       shreminders.admin.list: true
+      shreminders.admin.notifications: true
   shreminders.admin.schedule:
     description: Programmer un rappel pour un joueur (/shreminders schedule).
     default: op
@@ -38,4 +39,7 @@ permissions:
     default: op
   shreminders.admin.list:
     description: Consulter les rappels en attente.
+    default: op
+  shreminders.admin.notifications:
+    description: Voir et changer les groupes de rappels coupés par un joueur.
     default: op
