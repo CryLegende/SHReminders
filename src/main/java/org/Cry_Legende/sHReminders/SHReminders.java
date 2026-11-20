@@ -98,7 +98,6 @@ public class SHReminders extends JavaPlugin {
 
         if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
             new SHRemindersPlaceholderExpansion(this).register();
-            getLogger().info("PlaceholderAPI trouvée : les placeholders SHReminders ont été enregistrés.");
         }
     }
 
@@ -203,9 +202,12 @@ public class SHReminders extends JavaPlugin {
             }
             saveReminders(); // I/O : on est déjà dans une tâche asynchrone, hors du verrou de la map
 
-            Bukkit.getScheduler().runTask(this, () -> {
-                sender.sendMessage(message("scheduled", "%id%", reminderId, "%player%", canonicalPlayerName));
-            });
+            // La console (votes du site) en programme des centaines par jour : pas de compte rendu
+            if (!(sender instanceof org.bukkit.command.ConsoleCommandSender || sender instanceof org.bukkit.command.RemoteConsoleCommandSender)) {
+                Bukkit.getScheduler().runTask(this, () -> {
+                    sender.sendMessage(message("scheduled", "%id%", reminderId, "%player%", canonicalPlayerName));
+                });
+            }
         });
         // --- Fin de la section asynchrone ---
     }

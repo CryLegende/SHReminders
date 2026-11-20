@@ -6,6 +6,7 @@
 #                définie dans la section "reminders" de ce fichier.
 #                Si un rappel avec le même <id_rappel_config> existe déjà pour ce joueur, il est remplacé.
 #                L'ancienne forme /shreminders <joueur> <id_rappel_config> fonctionne toujours.
+#                Depuis la console, seules les erreurs sont affichées.
 #   Permission: shreminders.admin.schedule
 #   Exemple: /shreminders schedule Notch monPremierRappel
 #     -> Va chercher la configuration sous "reminders.monPremierRappel:"
